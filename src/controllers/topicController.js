@@ -3,74 +3,80 @@ import Topic from '../models/Topic.js';
 import { uploadBufferToCloudinary } from '../utils/uploadToCloudinary.js';
 import Enrollment from '../models/Enrollment.js'; // For user registration check
 
-const handleVideoUpload = async (req, folderNamePrefix) => {
-    if (req.file) {
-        const buffer = req.file.buffer;
-        const originalname = req.file.originalname;
-        const filename = `${folderNamePrefix}-${originalname.replace(/\s/g, '_')}`;
-        const folderName = `lms/topics/${folderNamePrefix}`;
+// const handleVideoUpload = async (req, folderNamePrefix) => {
+//     if (req.file) {
+//         const buffer = req.file.buffer;
+//         const originalname = req.file.originalname;
+//         const filename = `${folderNamePrefix}-${originalname.replace(/\s/g, '_')}`;
+//         const folderName = `lms/topics/${folderNamePrefix}`;
 
-        // resourceType 'video' for video uploads, 'image' is also possible from extensions
-        const resourceType = ['.mp4', '.mov', '.webm', '.avi', '.wmv', '.flv', '.mkv'].some(ext => filename.endsWith(ext))
-            ? 'video' : 'image';
+//         // resourceType 'video' for video uploads, 'image' is also possible from extensions
+//         const resourceType = ['.mp4', '.mov', '.webm', '.avi', '.wmv', '.flv', '.mkv'].some(ext => filename.endsWith(ext))
+//             ? 'video' : 'image';
 
-        const uploadedUrl = await uploadBufferToCloudinary(buffer, filename, folderName, resourceType);
-        return uploadedUrl;
-    }
-    return '';
-};
+//         const uploadedUrl = await uploadBufferToCloudinary(buffer, filename, folderName, resourceType);
+//         return uploadedUrl;
+//     }
+//     return '';
+// };
 
 // Admin create topic
+// Admin create topic (no file upload)
 export const adminCreateTopic = async (req, res) => {
-    try {
-        const { event_id, session_id, topic, speaker_id, order } = req.body;
-        if (!event_id || !session_id || !topic || !speaker_id) {
-            return res.status(400).json({ error: 'Missing required fields.' });
-        }
+  try {
+    const { event_id, session_id, topic, speaker_id, video_link, order } = req.body;
 
-        const videoLink = await handleVideoUpload(req, topic.replace(/\s/g, '_'));
-
-        const newTopic = new Topic({
-            event_id,
-            session_id,
-            topic,
-            speaker_id,
-            video_link: videoLink,
-            order: order || 1,
-        });
-
-        await newTopic.save();
-        res.status(201).json({ success: true, topic: newTopic });
-    } catch (error) {
-        console.error('Admin Create Topic Error:', error);
-        res.status(500).json({ error: 'Internal server error while creating topic.', details: error.message });
+    if (!event_id || !session_id || !topic || !speaker_id) {
+      return res.status(400).json({ error: 'Missing required fields.' });
     }
+
+    // video_link can be an empty string or an actual URL:
+    const newTopic = new Topic({
+      event_id,
+      session_id,
+      topic,
+      speaker_id,
+      video_link: video_link || '',
+      order: order || 1,
+    });
+
+    await newTopic.save();
+    res.status(201).json({ success: true, topic: newTopic });
+  } catch (error) {
+    console.error('Admin Create Topic Error:', error);
+    res.status(500).json({ error: 'Internal server error while creating topic.' });
+  }
 };
 
 // Admin update topic
+// Admin update topic (no file upload)
 export const adminUpdateTopic = async (req, res) => {
-    try {
-        const topicId = req.params.id;
-        const currentTopic = await Topic.findById(topicId);
-        if (!currentTopic) {
-            return res.status(404).json({ error: 'Topic not found.' });
-        }
-
-        let updateData = { ...req.body };
-        if (req.file) {
-            const videoLink = await handleVideoUpload(req, updateData.topic || currentTopic.topic);
-            updateData.video_link = videoLink;
-        }
-
-        const updatedTopic = await Topic.findByIdAndUpdate(topicId, { $set: updateData }, { new: true, runValidators: true });
-        res.status(200).json({ success: true, topic: updatedTopic });
-    } catch (error) {
-        console.error('Admin Update Topic Error:', error);
-        if (error.name === 'ValidationError') {
-            return res.status(400).json({ success: false, error: error.message });
-        }
-        res.status(500).json({ error: 'Internal server error while updating topic.' });
+  try {
+    const topicId = req.params.id;
+    const currentTopic = await Topic.findById(topicId);
+    if (!currentTopic) {
+      return res.status(404).json({ error: 'Topic not found.' });
     }
+
+    // Only allow updating relevant fields; video_link is a string
+    const updateData = {
+      ...req.body,
+      video_link: req.body.video_link !== undefined ? req.body.video_link : currentTopic.video_link,
+    };
+
+    const updatedTopic = await Topic.findByIdAndUpdate(
+      topicId,
+      { $set: updateData },
+      { new: true, runValidators: true }
+    );
+    res.status(200).json({ success: true, topic: updatedTopic });
+  } catch (error) {
+    console.error('Admin Update Topic Error:', error);
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({ success: false, error: error.message });
+    }
+    res.status(500).json({ error: 'Internal server error while updating topic.' });
+  }
 };
 
 // Admin delete topic
