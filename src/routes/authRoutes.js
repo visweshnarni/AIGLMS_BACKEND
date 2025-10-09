@@ -1,12 +1,14 @@
 import express from 'express';
-import { signupBasic, loginBasic, getBasicProfile } from '../controllers/authController.js';
-import { protect } from '../middlewares/userAuth.js';
-
+import { signup, login, getProfile } from '../controllers/authController.js';
+import { protect } from '../middlewares/authMiddleware.js';
 
 const router = express.Router();
 
-router.post('/signup', signupBasic);
-router.post('/login', loginBasic);
-router.get('/me', protect, getBasicProfile);
+// Public routes
+router.post('/signup', signup);
+router.post('/login', login);
+
+// Protected route to get profile (requires a valid token)
+router.get('/me', protect, getProfile);
 
 export default router;

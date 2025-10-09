@@ -1,108 +1,46 @@
 import mongoose from 'mongoose';
-import bcrypt from 'bcryptjs';
+// No need for bcryptjs since you requested to skip it for now
 
 const { Schema } = mongoose;
 
-const pgSpecialistEnum = [
-    'Prosthodontics and Crown & Bridge',
-    'Periodontology',
-    'Oral and Maxillofacial Surgery',
-    'Conservative Dentistry and Endodontics',
-    'Orthodontics and Dentofacial Orthopedics',
-    'Oral & Maxillofacial Pathology and Oral Microbiology',
-    'Public Health Dentistry',
-    'Pediatric and Preventive Dentistry',
-    'Oral Medicine and Radiology'
-];
-
-const casteCategoryEnum = [
-    'Open Category',
-    'Backward Classes',
-    'Scheduled Castes',
-    'Scheduled Tribes'
-];
-
-const regTypeEnum = [
-    'Regular (By Post - Fee includes postal charges)',
-    'Tatkal (By Hand)'
-];
-
 const userSchema = new Schema({
-    regcategory_id: { type: Schema.Types.ObjectId, ref: 'RegistrationCategory', required: true },
-    nationality_id: { type: Schema.Types.ObjectId, ref: 'Nationality', required: true },
-    f_name: { type: String, required: [true, 'First name is required'], trim: true },
-    m_name: { type: String, trim: true },
-    l_name: { type: String, required: [true, 'Last name is required'], trim: true },
-    gender: { type: String, enum: ['Male', 'Female', 'Other'], required: [true, 'Gender is required'] },
-    father_name: { type: String, required: [true, 'Father\'s name is required'], trim: true },
-    mother_name: { type: String, required: [true, 'Mother\'s name is required'], trim: true },
-    place: { type: String, required: [true, 'Place is required'] },
-    dob: { type: Date, required: [true, 'Date of Birth is required'] },
-    category: { type: String, enum: casteCategoryEnum, required: [true, 'Category is required'] },
-    email: { type: String, required: [true, 'Email is required'], unique: true, match: [/^\S+@\S+\.\S+$/, 'Email is invalid'] },
-    mobile_number: { type: String, required: [true, 'Mobile number is required'], unique: true, match: [/^\d{10}$/, 'Mobile number must be 10 digits'] },
-    telephone_number: { type: String },
-    address: { type: String, required: [true, 'Residential address is required'] },
-    pan_number: { type: String, required: [true, 'PAN card number is required'], match: [/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/, 'Invalid PAN format'] },
-    pan_upload: { type: String, required: [true, 'PAN upload is required'] },
-    aadhaar_number: { type: String, required: [true, 'Aadhaar number is required'], match: [/^\d{12}$/, 'Aadhaar number must be 12 digits'] },
-    aadhaar_upload: { type: String, required: [true, 'Aadhaar upload is required'] },
-    sign_upload: { type: String, required: [true, 'Signature upload is required'] },
-    regtype: { type: String, enum: regTypeEnum, required: [true, 'Registration Type is required'] },
+    // Fields from your required list and Sign Up screen
+    prefix: { type: String, trim: true }, // Eg: Dr, Prof, Mr, Ms
+    fullName: { type: String, required: [true, 'Full Name is required'], trim: true },
+    email: { 
+        type: String, 
+        required: [true, 'Email is required'], 
+        unique: true, 
+        lowercase: true,
+        match: [/^\S+@\S+\.\S+$/, 'Email is invalid'] 
+    },
+    mobile: { 
+        type: String, 
+        required: [true, 'Mobile number is required'], 
+        unique: true, 
+        match: [/^\d{10}$/, 'Mobile number must be 10 digits'] 
+    },
+    country: { type: String },
     password: { type: String, required: [true, 'Password is required'] },
+    
+    // Fields from your My Profile screen (optional on signup, filled in later)
+    designation: { type: String, trim: true },
+    affiliationHospital: { type: String, trim: true },
+    state: { type: String, trim: true },
+    city: { type: String, trim: true },
+    pincode: { type: String, trim: true },
+    
+    // Additional fields
+    profilePhoto: { type: String }, // URL or path to the uploaded photo
     resetPasswordToken: String,
     resetPasswordExpire: Date,
-    pr_bds_upload: String,
-    pr_bonafide_upload: String,
-    ssc_memo_upload: String,
-    custodian_clg_upload: String,
-    professional_address: String,
-    qualification_description: String,
-    bds_university_address: String,
-    bds_qualification_year: { type: String, match: [/^(0[1-9]|1[0-2])\/\d{4}$/, 'BDS Qualification Year must be in MM/YYYY format'] },
-    bds_clg_address: String,
-    bds_degree_upload: String,
-    study_upload: String,
-    bds_intern_upload: String,
-    pr_certificate_upload: String,
-    bds_affidavit_upload: String,
-    mds_university_address: String,
-    mds_qualification_year: { type: String, match: [/^(0[1-9]|1[0-2])\/\d{4}$/, 'MDS Qualification Year must be in MM/YYYY format'] },
-    mds_clg_address: String,
-    mds_degree_upload: String,
-    mds_bonafide_marks_upload: String,
-    curr_tdc_reg_certificate_upload: String,
-    transfer_noc_upload: String,
-    noc_dci_upload: String,
-    mds_affidavit_upload: String,
-    pg_specialist: { type: String, enum: pgSpecialistEnum },
-    nid_qualification_des: String,
-    dci_university_address: String,
-    dci_qualification_year: String,
-    dci_clg_address: String,
-    dci_degree_upload: String,
-    dci_bonafide_upload: String
 }, {
     timestamps: true,
-    // CRITICAL: This option ensures virtual fields are returned in JSON
-    toJSON: { virtuals: true },
-    toObject: { virtuals: true },
 });
 
-// Create a virtual property `full_name` that combines `f_name`, `m_name`, and `l_name`
-userSchema.virtual('full_name').get(function() {
-    return `${this.f_name} ${this.m_name || ''} ${this.l_name}`.trim();
-});
-
-// Password Hashing (commented out for testing)
-// userSchema.pre('save', async function (next) {
-//   if (!this.isModified('password')) return next();
-//   try {
-//     this.password = await bcrypt.hash(this.password, 10);
-//     next();
-//   } catch (err) {
-//     next(err);
-//   }
+// Virtual field for consistency (User_id is just _id in Mongoose)
+// userSchema.virtual('User_id').get(function() {
+//     return this._id;
 // });
 
 const User = mongoose.model('User', userSchema);
