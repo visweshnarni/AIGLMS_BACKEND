@@ -13,8 +13,11 @@ import eventRoutes from './src/routes/eventRoutes.js'; // <-- NEW
 import sessionRoutes from './src/routes/sessionRoutes.js';
 import speakerRoutes from './src/routes/speakerRoutes.js';
 import topicRoutes from './src/routes/topicRoutes.js'; // Uncomment if topic routes are needed
+import enrollmentRoutes from './src/routes/enrollmentRoutes.js'; // NEW: Enrollment Routes
+import paymentRoutes from './src/routes/paymentRoutes.js'; // NEW: Payment Routes
+import adminUserRoutes from './src/routes/adminUserRoutes.js';
 
-
+ 
 // --- Configuration Setup ---
 dotenv.config();
 
@@ -46,13 +49,19 @@ const connectDB = async () => {
 
 
 // --- Routes ---
+
 app.use('/api/auth', authRoutes);
 // NEW: Admin Routes
+
+app.use('/api/admin/users', adminUserRoutes);
+
 app.use('/api/admin', adminRoutes); 
 app.use('/api/events', eventRoutes); // NEW: Event Routes
 app.use('/api/sessions', sessionRoutes);
 app.use('/api/speakers', speakerRoutes);
 app.use('/api/topics', topicRoutes); // Uncomment if topic routes are needed
+app.use('/api/enrollments', enrollmentRoutes); // NEW: Enrollment Routes
+app.use('/api/payments', paymentRoutes); // NEW: Payment Routes
 
 
 // Base Route

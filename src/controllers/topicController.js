@@ -124,3 +124,110 @@ export const userGetTopicsForSession = async (req, res) => {
         res.status(500).json({ error: 'Internal server error while fetching topics.' });
     }
 };
+
+
+
+// Admin: Get all topics
+export const adminGetAllTopics = async (req, res) => {
+    try {
+        const topics = await Topic.find()
+            .populate('event_id', 'fullName shortName')
+            .populate('session_id', 'title startDate startTime hall')
+            .populate('speaker_id', 'name affiliation photo')
+            .sort({ createdAt: -1 });
+
+        res.status(200).json({ success: true, count: topics.length, topics });
+    } catch (error) {
+        console.error('Admin Get All Topics Error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
+
+// Admin: Get topic by ID (all fields)
+export const adminGetTopicById = async (req, res) => {
+    try {
+        const topic = await Topic.findById(req.params.id)
+            .populate('event_id', 'fullName shortName')
+            .populate('session_id', 'title startDate startTime hall')
+            .populate('speaker_id', 'name affiliation photo');
+
+        if (!topic) return res.status(404).json({ error: 'Topic not found' });
+        res.status(200).json({ success: true, topic });
+    } catch (error) {
+        console.error('Admin Get Topic By Id Error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
+
+// Admin: Get all topics by session ID
+export const adminGetTopicsBySession = async (req, res) => {
+    try {
+        const topics = await Topic.find({ session_id: req.params.sessionId })
+            .populate('event_id', 'fullName shortName')
+            .populate('session_id', 'title startDate startTime hall')
+            .populate('speaker_id', 'name affiliation photo')
+            .sort({ order: 1 });
+
+        res.status(200).json({ success: true, count: topics.length, topics });
+    } catch (error) {
+        console.error('Admin Get Topics By Session Error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
+
+// Admin: Get all topics by event ID
+export const adminGetTopicsByEvent = async (req, res) => {
+    try {
+        const topics = await Topic.find({ event_id: req.params.eventId })
+            .populate('event_id', 'fullName shortName')
+            .populate('session_id', 'title startDate startTime hall')
+            .populate('speaker_id', 'name affiliation photo')
+            .sort({ order: 1 });
+
+        res.status(200).json({ success: true, count: topics.length, topics });
+    } catch (error) {
+        console.error('Admin Get Topics By Event Error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
+
+
+
+
+
+export const userGetTopicsByEvent = async (req, res) => {
+    try {
+        const eventId = req.params.eventId;
+        // Get topics for event
+        const topics = await Topic.find({ event_id: eventId })
+            .populate('event_id', 'fullName shortName')
+            .populate('session_id', 'title startDate startTime hall')
+            .populate('speaker_id', 'name affiliation photo')
+            .sort({ order: 1 });
+
+        let enrolled = false;
+        if (req.user) {
+            const enrollment = await Enrollment.findOne({ user_id: req.user._id, event_id: eventId });
+            if (enrollment && (enrollment.status === 'PAID_SUCCESS' || enrollment.status === 'FREE_REGISTERED')) {
+                enrolled = true;
+            }
+        }
+
+        const topicsResp = topics.map(t => ({
+            _id: t._id,
+            event_id: t.event_id,
+            session_id: t.session_id,
+            topic: t.topic,
+            speaker: t.speaker_id,
+            video_link: enrolled ? t.video_link : '',
+            order: t.order,
+            createdAt: t.createdAt,
+            updatedAt: t.updatedAt
+        }));
+
+        res.status(200).json({ success: true, count: topicsResp.length, topics: topicsResp });
+    } catch (error) {
+        console.error('User Get Topics By Event Error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
