@@ -1,44 +1,50 @@
 import express from 'express';
-// We need both middlewares for admin access and user profile check
+// Middlewares
 import { protectAdmin } from '../middlewares/adminAuth.js';
-import { protect } from '../middlewares/authMiddleware.js'; 
-import eventImageUpload from '../middlewares/staticFileUpload.js'; 
+import { protect } from '../middlewares/authMiddleware.js';
+import eventImageUpload from '../middlewares/staticFileUpload.js';
+// Controllers
 import {
     adminCreateEvent,
     adminGetAllEvents,
     adminUpdateEvent,
     adminDeleteEvent,
     userGetActiveEvents,
-    userGetEventDetails,
+    userGetEventDetails, // The old, simple details endpoint
+    userGetPublicEventDetails, // The new, comprehensive details endpoint
+    userGetActiveFreeEvents,
+    userGetActivePaidEvents,
 } from '../controllers/eventController.js';
 
 const router = express.Router();
 
 // =======================================================
-// 1. ADMIN MANAGEMENT ROUTES (PROTECTED)
+// 1. ADMIN MANAGEMENT ROUTES
 // =======================================================
+router.route('/admin')
+    .post(protectAdmin, eventImageUpload, adminCreateEvent)
+    .get(protectAdmin, adminGetAllEvents);
 
-// POST: Create New Event (Handles image upload via 'image' field)
-router.post('/admin', protectAdmin, eventImageUpload, adminCreateEvent); 
-
-// GET: Admin - Get all events (including DRAFTs)
-router.get('/admin', protectAdmin, adminGetAllEvents);
-
-// PUT/DELETE: Update or Delete a specific event
 router.route('/admin/:id')
-    .put(protectAdmin, eventImageUpload, adminUpdateEvent) // <-- NOW CORRECTLY INCLUDES eventImageUpload
+    .put(protectAdmin, eventImageUpload, adminUpdateEvent)
     .delete(protectAdmin, adminDeleteEvent);
-
 
 // =======================================================
 // 2. PUBLIC & USER ACCESS ROUTES
 // =======================================================
 
-// GET: Public - Get a list of all ACTIVE events for browsing
-router.get('/public', userGetActiveEvents);
+// GET: Public - List of FREE active events with sorting
+router.get('/public/free', userGetActiveFreeEvents);
 
-// GET: Detailed Event View
-// Uses 'protect' to optionally load user data (for enrollment check)
+// GET: Public - List of PAID active events with sorting
+router.get('/public/paid', userGetActivePaidEvents);
+
+// NEW: Get comprehensive details for a single event, including sessions and topics
+// The 'protect' middleware makes user authentication optional.
+router.get('/public/details/:id', protect, userGetPublicEventDetails);
+
+
+// OLD/DEPRECATED: Simple event details endpoint
 router.get('/:id', protect, userGetEventDetails);
 
 

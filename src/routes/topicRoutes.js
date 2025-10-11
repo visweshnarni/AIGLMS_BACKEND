@@ -1,6 +1,7 @@
 import express from 'express';
 import { protectAdmin } from '../middlewares/adminAuth.js';
 import { protect } from '../middlewares/authMiddleware.js';
+import fileUpload from '../middlewares/staticFileUpload.js';
 
 import {
     adminCreateTopic,
@@ -12,13 +13,14 @@ import {
     adminGetTopicsBySession,
     adminGetTopicsByEvent,
     userGetTopicsByEvent,
+    userGetVideoPlayerDetails,
 } from '../controllers/topicController.js';
 
 const router = express.Router();
 
 // Admin Routes — remove fileUpload middleware (not needed)
-router.post('/admin', protectAdmin, adminCreateTopic);
-router.put('/admin/:id', protectAdmin, adminUpdateTopic);
+router.post('/admin', protectAdmin, fileUpload, adminCreateTopic);
+router.put('/admin/:id', protectAdmin, fileUpload, adminUpdateTopic);
 router.delete('/admin/:id', protectAdmin, adminDeleteTopic);
 
 // Admin endpoints
@@ -27,6 +29,7 @@ router.get('/admin/:id', protectAdmin, adminGetTopicById);              // Get t
 router.get('/admin/session/:sessionId', protectAdmin, adminGetTopicsBySession); // Get by session
 router.get('/admin/event/:eventId', protectAdmin, adminGetTopicsByEvent);        // Get by event
 
+router.get('/video-player/:topicId', protect, userGetVideoPlayerDetails);  // Get video player details for a topic
 // User endpoints (protected)
 router.get('/event/:eventId', protect, userGetTopicsByEvent);           // Get all topics for event (gated by status)
 router.get('/event/:eventId/session/:sessionId', protect, userGetTopicsForSession); // Get topics for event+session

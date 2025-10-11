@@ -105,3 +105,45 @@ export const getProfile = async (req, res) => {
     }
 };
 
+export const updateProfile = async (req, res) => {
+    try {
+        const userIdToEdit = req.params.id || req.user._id; // admin: /users/:id, user: /me
+        // Restrict what can be updated if needed (security)
+        const {
+            prefix, fullName, mobile, country,
+            designation, affiliationHospital, state, city, pincode, profilePhoto
+        } = req.body;
+
+        const updateData = {
+            ...(prefix !== undefined && { prefix }),
+            ...(fullName !== undefined && { fullName }),
+            ...(mobile !== undefined && { mobile }),
+            ...(country !== undefined && { country }),
+            ...(designation !== undefined && { designation }),
+            ...(affiliationHospital !== undefined && { affiliationHospital }),
+            ...(state !== undefined && { state }),
+            ...(city !== undefined && { city }),
+            ...(pincode !== undefined && { pincode }),
+            ...(profilePhoto !== undefined && { profilePhoto })
+        };
+
+        const updatedUser = await User.findByIdAndUpdate(
+            userIdToEdit,
+            { $set: updateData },
+            { new: true, runValidators: true, select: '-password' }
+        );
+        if (!updatedUser) return res.status(404).json({ error: 'User not found' });
+
+        res.status(200).json({
+            success: true,
+            message: 'Profile updated successfully.',
+            user: updatedUser
+        });
+    } catch (error) {
+        console.error('Profile Update Error:', error.message);
+        if (error.name === 'ValidationError') {
+            return res.status(400).json({ error: error.message });
+        }
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};

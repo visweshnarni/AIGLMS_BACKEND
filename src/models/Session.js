@@ -1,4 +1,3 @@
-// models/Session.js
 import mongoose from 'mongoose';
 
 const { Schema } = mongoose;
@@ -24,10 +23,11 @@ const sessionSchema = new Schema({
     },
     endTime: { type: String },
     hall: { type: String, trim: true },
-    order: { type: Number, default: 1 }
+    // Removed: order field
 }, {
     timestamps: true,
 });
+// Using a unique index on event_id and title ensures no duplicate sessions in the same event
 sessionSchema.index({ event_id: 1, title: 1 }, { unique: true });
 const Session = mongoose.model('Session', sessionSchema);
 export default Session;
