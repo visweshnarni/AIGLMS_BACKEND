@@ -392,7 +392,7 @@ export const userGetPublicEventDetails = async (req, res) => {
                     video_duration: 1,
                     session_id: '$sessionInfo._id',
                     sessionName: '$sessionInfo.name',
-                    speakerName: '$speakerInfo.fullName'
+                    speakerName: '$speakerInfo.name'
                 }
             }
         ]);
