@@ -14,6 +14,7 @@ import {
     userGetPublicEventDetails, // The new, comprehensive details endpoint
     userGetActiveFreeEvents,
     userGetActivePaidEvents,
+    userGetRegisteredEvents
 } from '../controllers/eventController.js';
 
 const router = express.Router();
@@ -43,9 +44,12 @@ router.get('/public/paid', userGetActivePaidEvents);
 // The 'protect' middleware makes user authentication optional.
 router.get('/public/details/:id', protect, userGetPublicEventDetails);
 
+router.get('/registered', protect, userGetRegisteredEvents);
+
 
 // OLD/DEPRECATED: Simple event details endpoint
 router.get('/:id', protect, userGetEventDetails);
 
 
 export default router;
+

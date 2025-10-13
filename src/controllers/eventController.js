@@ -272,18 +272,18 @@ export const userGetEventDetails = async (req, res) => {
 
 // Get all Active Free events
 /**
+ * MODIFIED HELPER FUNCTION:
  * A helper function to fetch, sort, and enrich active events by their registration type.
+ * Now includes 'alphabetical' sort.
  * @param {'FREE' | 'PAID'} regType - The registration type of events to fetch.
- * @param {'newest' | 'popularity'} sortType - The sorting criteria.
+ * @param {'newest' | 'popularity' | 'alphabetical'} sortType - The sorting criteria.
  * @returns {Promise<Array>} - A promise that resolves to an array of enriched event objects.
  */
 const getActiveEventsByType = async (regType, sortType) => {
-    // 1. Get all enrollments to calculate popularity efficiently in one go
+    // 1. Get all enrollments to calculate popularity
     const popularityCounts = await EnrollmentModel.aggregate([
         { $group: { _id: "$event_id", count: { $sum: 1 } } }
     ]);
-
-    // Convert to a Map for easy lookup: { eventId => count }
     const popularityMap = new Map(
         popularityCounts.map(item => [item._id.toString(), item.count])
     );
@@ -296,9 +296,8 @@ const getActiveEventsByType = async (regType, sortType) => {
         events.map(async (event) => {
             const eventDuration = await calculateEventDuration(event._id);
             const popularity = popularityMap.get(event._id.toString()) || 0;
-
             return {
-                ...event, // Spread the original event data
+                ...event,
                 duration: eventDuration,
                 popularity: popularity
             };
@@ -308,6 +307,9 @@ const getActiveEventsByType = async (regType, sortType) => {
     // 4. Sort the results based on the sortType parameter
     if (sortType === 'popularity') {
         enrichedEvents.sort((a, b) => b.popularity - a.popularity);
+    } else if (sortType === 'alphabetical') {
+        // NEW: Alphabetical sorting
+        enrichedEvents.sort((a, b) => a.fullName.localeCompare(b.fullName));
     } else { // Default to 'newest'
         enrichedEvents.sort((a, b) => new Date(b.start_date) - new Date(a.start_date));
     }
@@ -335,18 +337,17 @@ export const userGetActiveFreeEvents = async (req, res) => {
     }
 };
 
-// GET: Get all Active Paid events (now with sorting)
+// GET: Get all Active Paid events (now with enhanced sorting)
 export const userGetActivePaidEvents = async (req, res) => {
     try {
-        const sortType = req.query.sort || 'newest'; // Default to 'newest'
+        const sortType = req.query.sort || 'newest';
         const events = await getActiveEventsByType('PAID', sortType);
         res.status(200).json({ success: true, count: events.length, events });
     } catch (error) {
         console.error('Error fetching paid events:', error.message);
         res.status(500).json({ error: 'Internal server error while fetching paid events.' });
     }
-};
-
+}
 
 // NEW: Get Detailed Event View with Sessions, Topics, and Enrollment Status
 export const userGetPublicEventDetails = async (req, res) => {
@@ -435,5 +436,82 @@ export const userGetPublicEventDetails = async (req, res) => {
     } catch (error) {
         console.error('User Get Public Event Details Error:', error.message);
         res.status(500).json({ success: false, error: 'Internal server error while fetching event details.' });
+    }
+};
+
+
+/**
+ * MODIFIED FUNCTION:
+ * @desc    Get all events a specific user is registered for, with popularity and sorting.
+ * @route   GET /api/events/registered?sort={newest|popularity|alphabetical}
+ * @access  Private (User must be logged in)
+ */
+export const userGetRegisteredEvents = async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const sortType = req.query.sort || 'newest'; // Get sort type from query
+
+        // Find all successful enrollments for the user
+        const enrollments = await EnrollmentModel.find({
+            user_id: userId,
+            status: { $in: ['FREE_REGISTERED', 'PAID_SUCCESS'] }
+        }).populate({
+            path: 'event_id',
+            model: 'Event'
+        }); // We will sort in the application logic after enriching
+
+        if (!enrollments || enrollments.length === 0) {
+            return res.status(200).json({ success: true, count: 0, events: [] });
+        }
+
+        // Enrich the event data with aggregated details
+        let registeredEventsList = await Promise.all(
+            enrollments.map(async (enrollment) => {
+                const event = enrollment.event_id;
+                if (!event) return null;
+
+                const totalVideos = await Topic.countDocuments({ event_id: event._id });
+                const distinctSessions = await Topic.distinct('session_id', { event_id: event._id });
+                const totalSessions = distinctSessions.length;
+                const totalDurationMinutes = await calculateEventDuration(event._id);
+                // NEW: Calculate popularity (total enrollments)
+                const popularity = await EnrollmentModel.countDocuments({ event_id: event._id });
+
+                return {
+                    id: event._id,
+                    name: event.fullName,
+                    startDate: event.start_date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
+                    endDate: event.end_date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
+                    location: `${event.venue}, ${event.city}`,
+                    videos: `${totalVideos} recorded videos`,
+                    sessions: `${totalSessions} Sessions`,
+                    duration: `${totalDurationMinutes} mins total event`,
+                    registeredOn: enrollment.createdAt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
+                    // Keep raw date for sorting
+                    rawRegisteredOn: enrollment.createdAt,
+                    image: event.image,
+                    // NEW: Add popularity to the response
+                    popularity: popularity,
+                };
+            })
+        );
+
+        // Filter out any null results
+        let finalEvents = registeredEventsList.filter(event => event !== null);
+
+        // NEW: Apply sorting based on the query parameter
+        if (sortType === 'popularity') {
+            finalEvents.sort((a, b) => b.popularity - a.popularity);
+        } else if (sortType === 'alphabetical') {
+            finalEvents.sort((a, b) => a.name.localeCompare(b.name));
+        } else { // Default to 'newest'
+            finalEvents.sort((a, b) => new Date(b.rawRegisteredOn) - new Date(a.rawRegisteredOn));
+        }
+
+        res.status(200).json({ success: true, count: finalEvents.length, events: finalEvents });
+
+    } catch (error) {
+        console.error('Error fetching registered events:', error.message);
+        res.status(500).json({ success: false, error: 'Internal server error while fetching registered events.' });
     }
 };
