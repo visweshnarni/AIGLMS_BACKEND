@@ -2,6 +2,7 @@
 import Speaker from '../models/Speaker.js';
 // utils/handleSpeakerImageUpload.js
 import { uploadBufferToCloudinary } from '../utils/uploadToCloudinary.js';
+import Topic from '../models/Topic.js';
 
 export const handleSpeakerImageUpload = async (req, speakerName) => {
     if (req.file) {
@@ -91,9 +92,57 @@ export const adminDeleteSpeaker = async (req, res) => {
     }
 };
 
+/**
+ * MODIFIED FUNCTION
+ * @desc    Get all speakers, enriched with topic count and formatted location, with sorting.
+ * @route   GET /api/speakers/public?sort={alphabetical|most-videos}
+ * @access  Public
+ */
 export const userGetAllSpeakers = async (req, res) => {
     try {
-        const speakers = await Speaker.find().sort({ createdAt: -1 });
+        // Get the sort type from query params, default to 'alphabetical'
+        const sortType = req.query.sort || 'alphabetical';
+
+        // Step 1: Efficiently count all topics for each speaker.
+        const topicCounts = await Topic.aggregate([
+            {
+                $group: {
+                    _id: "$speaker_id",
+                    totalTopics: { $sum: 1 }
+                }
+            }
+        ]);
+
+        const topicCountsMap = new Map(
+            topicCounts.map(item => [item._id.toString(), item.totalTopics])
+        );
+
+        // Step 2: Get all speaker documents without sorting them at the DB level yet.
+        const speakersFromDB = await Speaker.find().lean();
+
+        // Step 3: Map over speakers to format the response and add topic counts.
+        const speakers = speakersFromDB.map(speaker => {
+            const location = [speaker.state, speaker.country].filter(Boolean).join(', ');
+
+            return {
+                id: speaker._id,
+                name: speaker.name,
+                image: speaker.photo || null,
+                affliation: speaker.affiliation,
+                location: location,
+                totalTopics: topicCountsMap.get(speaker._id.toString()) || 0
+            };
+        });
+
+        // Step 4: Sort the final array based on the query parameter.
+        if (sortType === 'most-videos') {
+            // Sort by the number of topics in descending order
+            speakers.sort((a, b) => b.totalTopics - a.totalTopics);
+        } else {
+            // Default to alphabetical sort
+            speakers.sort((a, b) => a.name.localeCompare(b.name));
+        }
+
         res.status(200).json({ success: true, count: speakers.length, speakers });
     } catch (error) {
         console.error('User Get All Speakers Error:', error);
