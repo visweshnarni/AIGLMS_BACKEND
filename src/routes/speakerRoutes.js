@@ -9,6 +9,7 @@ import {
     adminDeleteSpeaker,
     userGetAllSpeakers,
     userGetSpeakerDetails,
+    userGetSpeakerDetailsWithVideos
 } from '../controllers/speakerController.js';
 
 const router = express.Router();
@@ -21,5 +22,8 @@ router.delete('/admin/:id', protectAdmin, adminDeleteSpeaker);
 // Public & user routes
 router.get('/public', userGetAllSpeakers);
 router.get('/:id', userGetSpeakerDetails);
+
+// NEW: GET Detailed speaker profile with videos (requires user login)
+router.get('/details/:id', protect, userGetSpeakerDetailsWithVideos);
 
 export default router;

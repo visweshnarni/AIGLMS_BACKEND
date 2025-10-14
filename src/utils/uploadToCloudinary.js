@@ -14,7 +14,7 @@ cloudinary.config({
  * Upload buffer to Cloudinary with dynamic resource type.
  * @param {Buffer} buffer - File buffer (Image or Video)
  * @param {string} filename - e.g. "my_event_image.png"
- * @param {string} folderName - e.g. "events/ACS2025" or "tdc/John_A_Doe"
+ * @param {string} folderName - e.g. "events/ACS2025" or "lms/John_A_Doe"
  * @param {'image' | 'video' | 'raw'} resourceType - Type of file to upload
  */
 export const uploadBufferToCloudinary = async (buffer, filename, folderName, resourceType) => {

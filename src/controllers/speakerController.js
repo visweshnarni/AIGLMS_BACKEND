@@ -3,6 +3,8 @@ import Speaker from '../models/Speaker.js';
 // utils/handleSpeakerImageUpload.js
 import { uploadBufferToCloudinary } from '../utils/uploadToCloudinary.js';
 import Topic from '../models/Topic.js';
+import Enrollment from '../models/Enrollment.js'; // <-- ADD THIS IMPORT
+import mongoose from 'mongoose';
 
 export const handleSpeakerImageUpload = async (req, speakerName) => {
     if (req.file) {
@@ -160,5 +162,117 @@ export const userGetSpeakerDetails = async (req, res) => {
     } catch (error) {
         console.error('User Get Speaker Details Error:', error);
         res.status(500).json({ error: 'Internal server error while fetching speaker details.' });
+    }
+};
+
+/**
+ * MODIFIED FUNCTION
+ * @desc    Get detailed information for a single speaker, including their videos with thumbnails.
+ * @route   GET /api/speakers/details/:id
+ * @access  Private (User must be logged in)
+ */
+export const userGetSpeakerDetailsWithVideos = async (req, res) => {
+    try {
+        const speakerId = new mongoose.Types.ObjectId(req.params.id);
+        const userId = req.user._id;
+
+        // 1. Get speaker's basic details
+        const speaker = await Speaker.findById(speakerId).lean();
+        if (!speaker) {
+            return res.status(404).json({ success: false, error: 'Speaker not found.' });
+        }
+
+        // 2. Aggregate all topics/videos for this speaker
+        const videoAggregation = await Topic.aggregate([
+            // Stages 1-5 remain the same...
+            { $match: { speaker_id: speakerId } },
+            {
+                $lookup: {
+                    from: 'events',
+                    localField: 'event_id',
+                    foreignField: '_id',
+                    as: 'eventInfo'
+                }
+            },
+            { $match: { 'eventInfo.status': 'ACTIVE' } },
+            { $unwind: '$eventInfo' },
+            {
+                $addFields: {
+                    durationInSeconds: {
+                        $let: {
+                            vars: { parts: { $split: ["$video_duration", ":"] } },
+                            in: {
+                                $add: [
+                                    { $multiply: [{ $toInt: { $arrayElemAt: ["$$parts", 0] } }, 3600] },
+                                    { $multiply: [{ $toInt: { $arrayElemAt: ["$$parts", 1] } }, 60] },
+                                    { $toInt: { $arrayElemAt: ["$$parts", 2] } }
+                                ]
+                            }
+                        }
+                    }
+                }
+            },
+            // Stage 6: Group results and build videos array
+            {
+                $group: {
+                    _id: null,
+                    totalSeconds: { $sum: '$durationInSeconds' },
+                    videos: {
+                        $push: {
+                            topicId: '$_id',
+                            title: '$topic',
+                            thumbnail: '$thumbnail', // <-- ADD THIS LINE
+                             videoLink: '$video_link',
+                            videoDuration: '$video_duration',
+                            eventId: '$eventInfo._id',
+                            eventName: '$eventInfo.fullName',
+                            eventRegType: '$eventInfo.regType'
+                        }
+                    }
+                }
+            }
+        ]);
+
+        const result = videoAggregation[0] || { totalSeconds: 0, videos: [] };
+        const totalMinutes = Math.round(result.totalSeconds / 60);
+        let videos = result.videos;
+
+        // 3. Check user's enrollment status for all relevant events
+        if (videos.length > 0) {
+            const eventIds = videos.map(v => v.eventId);
+            const userEnrollments = await Enrollment.find({
+                user_id: userId,
+                event_id: { $in: eventIds },
+                status: { $in: ['FREE_REGISTERED', 'PAID_SUCCESS'] }
+            }).select('event_id').lean();
+
+            const enrolledEventIds = new Set(userEnrollments.map(e => e.event_id.toString()));
+
+            // 4. Add enrollment status to each video
+            videos = videos.map(video => ({
+                ...video,
+                userEnrollmentStatus: enrolledEventIds.has(video.eventId.toString()) ? 'ENROLLED' : 'NOT_ENROLLED'
+            }));
+        }
+
+        // 5. Assemble the final response object
+        const responseData = {
+            speakerDetails: {
+                id: speaker._id,
+                name: speaker.name,
+                image: speaker.photo,
+                affiliation: speaker.affiliation,
+                location: [speaker.state, speaker.country].filter(Boolean).join(', '),
+                totalVideos: videos.length,
+                totalMinutes: totalMinutes
+            },
+            videos: videos
+        };
+
+        res.status(200).json({ success: true, data: responseData });
+
+    } catch (error) {
+        console.error('Get Speaker Details Error:', error);
+        res.status(500).json({ success: false, error: 'Internal server error while fetching speaker details.' });
     }
 };
