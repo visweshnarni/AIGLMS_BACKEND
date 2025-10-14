@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
+import { uploadBufferToCloudinary } from '../utils/uploadToCloudinary.js';
 
 // --- Helper Function ---
 // Generate JWT token
@@ -8,6 +9,29 @@ const generateToken = (id) => {
     return jwt.sign({ id }, process.env.JWT_SECRET || 'YOUR_SECRET_KEY', { expiresIn: '7d' });
 };
 
+
+/**
+ * NEW HELPER FUNCTION
+ * Handles uploading a user's profile photo to Cloudinary.
+ */
+const handleProfilePhotoUpload = async (req, userId) => {
+    if (req.file) {
+        const buffer = req.file.buffer;
+        const originalname = req.file.originalname;
+        // Create a unique filename for the user's profile photo
+        const filename = `profile-${userId}-${Date.now()}`;
+        const folderName = `lms/users/${userId}`;
+
+        const imageUrl = await uploadBufferToCloudinary(
+            buffer,
+            filename,
+            folderName,
+            'image'
+        );
+        return imageUrl;
+    }
+    return null;
+};
 // ---------------- Signup ----------------
 export const signup = async (req, res) => {
     try {
@@ -105,34 +129,45 @@ export const getProfile = async (req, res) => {
     }
 };
 
+// ---------------- MODIFIED: Update Profile ----------------
 export const updateProfile = async (req, res) => {
     try {
-        const userIdToEdit = req.params.id || req.user._id; // admin: /users/:id, user: /me
-        // Restrict what can be updated if needed (security)
+        const userIdToEdit = req.params.id || req.user._id;
+
+        // 1. Handle Image Upload
+        // If a new file is uploaded, this will return the Cloudinary URL.
+        const newPhotoUrl = await handleProfilePhotoUpload(req, userIdToEdit);
+
+        // 2. Prepare text fields for update
+        // The 'profilePhoto' field is excluded as it's handled separately.
         const {
             prefix, fullName, mobile, country,
-            designation, affiliationHospital, state, city, pincode, profilePhoto
+            designation, affiliationHospital, state, city, pincode
         } = req.body;
 
         const updateData = {
-            ...(prefix !== undefined && { prefix }),
-            ...(fullName !== undefined && { fullName }),
-            ...(mobile !== undefined && { mobile }),
-            ...(country !== undefined && { country }),
-            ...(designation !== undefined && { designation }),
-            ...(affiliationHospital !== undefined && { affiliationHospital }),
-            ...(state !== undefined && { state }),
-            ...(city !== undefined && { city }),
-            ...(pincode !== undefined && { pincode }),
-            ...(profilePhoto !== undefined && { profilePhoto })
+            prefix, fullName, mobile, country,
+            designation, affiliationHospital, state, city, pincode
         };
 
+        // 3. Add the new photo URL to the update object if it exists
+        if (newPhotoUrl) {
+            updateData.profilePhoto = newPhotoUrl;
+        }
+
+        // 4. Remove any fields that were not provided in the request
+        Object.keys(updateData).forEach(key => updateData[key] === undefined && delete updateData[key]);
+
+        // 5. Find and update the user in the database
         const updatedUser = await User.findByIdAndUpdate(
             userIdToEdit,
             { $set: updateData },
             { new: true, runValidators: true, select: '-password' }
         );
-        if (!updatedUser) return res.status(404).json({ error: 'User not found' });
+
+        if (!updatedUser) {
+            return res.status(404).json({ error: 'User not found' });
+        }
 
         res.status(200).json({
             success: true,
