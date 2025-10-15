@@ -1,4 +1,3 @@
-// models/Enrollment.js
 import mongoose from 'mongoose';
 
 const { Schema } = mongoose;
@@ -17,6 +16,17 @@ const enrollmentSchema = new Schema({
     purchaseDate: { type: Date, default: Date.now },
     amountPaid: { type: Number, default: 0, min: 0 },
     payment_id: { type: String, trim: true }, // e.g., Instamojo payment ID
+
+    // --- NEW FIELDS ADDED ---
+    eventCertificateName: { // To store the 'Full Name (as on certificate)'
+        type: String,
+        trim: true,
+    },
+    eventRegistrationEmail: { // To store the email used for registration
+        type: String,
+        trim: true,
+    }
+
 }, { timestamps: true });
 
 // Ensure one enrollment per user per event

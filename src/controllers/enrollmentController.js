@@ -6,35 +6,44 @@ import Payment from '../models/Payment.js';
 export const userRegisterFreeEvent = async (req, res) => {
     try {
         const userId = req.user._id;
-        const { event_id } = req.body;
+        // --- UPDATED: Destructure fullName and email from body ---
+        const { event_id, fullName, email } = req.body;
 
-        if (!event_id) {
-            return res.status(400).json({ error: 'Event ID is required' });
+        // --- UPDATED: Validate all required fields ---
+        if (!event_id || !fullName || !email) {
+            return res.status(400).json({ error: 'Event ID, Full Name, and Email are required' });
         }
 
         // Verify event exists and is FREE type
         const event = await Event.findById(event_id);
         if (!event) return res.status(404).json({ error: 'Event not found' });
         if (event.regType !== 'FREE') {
-            return res.status(400).json({ error: 'Event is not free registration' });
+            return res.status(400).json({ error: 'This event does not offer free registration' });
         }
 
         // Upsert enrollment: create or update to FREE_REGISTERED
         const enrollment = await Enrollment.findOneAndUpdate(
             { user_id: userId, event_id },
             {
+                // --- UPDATED: Add new fields to the update object ---
                 status: 'FREE_REGISTERED',
                 purchaseDate: new Date(),
                 amountPaid: 0,
                 payment_id: null,
+                eventCertificateName: fullName, // Save the name for the certificate
+                eventRegistrationEmail: email,  // Save the registration email
             },
             { upsert: true, new: true, setDefaultsOnInsert: true }
         );
 
-        res.status(200).json({ success: true, enrollment });
+        res.status(200).json({ success: true, message: 'Successfully registered for the event!', enrollment });
     } catch (error) {
         console.error('Free Registration Error:', error);
-        res.status(500).json({ error: 'Internal server error' });
+        // Handle potential duplicate key error nicely
+        if (error.code === 11000) {
+            return res.status(409).json({ error: 'You are already registered for this event.' });
+        }
+        res.status(500).json({ error: 'Internal server error during registration.' });
     }
 };
 
