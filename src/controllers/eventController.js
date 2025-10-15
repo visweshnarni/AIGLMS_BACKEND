@@ -274,7 +274,7 @@ export const userGetEventDetails = async (req, res) => {
 /**
  * MODIFIED HELPER FUNCTION:
  * A helper function to fetch, sort, and enrich active events by their registration type.
- * Now includes 'alphabetical' sort.
+ * Now includes 'alphabetical' sort AND counts for sessions and topics.
  * @param {'FREE' | 'PAID'} regType - The registration type of events to fetch.
  * @param {'newest' | 'popularity' | 'alphabetical'} sortType - The sorting criteria.
  * @returns {Promise<Array>} - A promise that resolves to an array of enriched event objects.
@@ -291,15 +291,28 @@ const getActiveEventsByType = async (regType, sortType) => {
     // 2. Fetch all active events of the specified type
     const events = await EventModel.find({ status: 'ACTIVE', regType }).lean();
 
-    // 3. Enrich events with popularity and duration
+    // 3. Enrich events with popularity, duration, AND session/topic counts
     const enrichedEvents = await Promise.all(
         events.map(async (event) => {
+            // Existing calculations
             const eventDuration = await calculateEventDuration(event._id);
             const popularity = popularityMap.get(event._id.toString()) || 0;
+
+            // --- NEW LOGIC TO COUNT SESSIONS AND TOPICS ---
+            // Count total topics/videos for this event
+            const totalTopics = await Topic.countDocuments({ event_id: event._id });
+            
+            // Count distinct sessions that have topics for this event
+            const distinctSessionIds = await Topic.distinct('session_id', { event_id: event._id });
+            const totalSessions = distinctSessionIds.length;
+            // --- END OF NEW LOGIC ---
+
             return {
                 ...event,
                 duration: eventDuration,
-                popularity: popularity
+                popularity: popularity,
+                totalSessions: totalSessions, // <-- ADDED
+                totalTopics: totalTopics      // <-- ADDED
             };
         })
     );
@@ -308,7 +321,6 @@ const getActiveEventsByType = async (regType, sortType) => {
     if (sortType === 'popularity') {
         enrichedEvents.sort((a, b) => b.popularity - a.popularity);
     } else if (sortType === 'alphabetical') {
-        // NEW: Alphabetical sorting
         enrichedEvents.sort((a, b) => a.fullName.localeCompare(b.fullName));
     } else { // Default to 'newest'
         enrichedEvents.sort((a, b) => new Date(b.start_date) - new Date(a.start_date));
@@ -316,8 +328,6 @@ const getActiveEventsByType = async (regType, sortType) => {
 
     return enrichedEvents;
 };
-
-
 // =======================================================
 // PUBLIC/USER FUNCTIONS (UPDATED)
 // =======================================================
