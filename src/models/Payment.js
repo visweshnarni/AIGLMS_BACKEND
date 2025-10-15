@@ -4,6 +4,7 @@ import mongoose from 'mongoose';
 const { Schema } = mongoose;
 
 const STATUS_TYPES = ['PENDING', 'SUCCESS', 'FAILED', 'REFUNDED'];
+const PAYMENT_MODES = ['CARD', 'NETBANKING', 'UPI', 'WALLET', 'EMI', 'UNKNOWN'];
 
 const paymentSchema = new Schema({
     user_id: {
@@ -37,6 +38,11 @@ const paymentSchema = new Schema({
         enum: STATUS_TYPES,
         default: 'PENDING',
         required: true,
+    },
+    paymentMode: { // <--- Added this field
+        type: String,
+        enum: PAYMENT_MODES,
+        trim: true,
     },
     paymentDate: {
         type: Date,
