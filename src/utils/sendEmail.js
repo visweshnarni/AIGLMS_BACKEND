@@ -1,19 +1,14 @@
 import nodemailer from 'nodemailer';
 
 const sendEmail = async (options) => {
-  // 1. Create a transporter
   const transporter = nodemailer.createTransport({
     host: process.env.EMAIL_HOST,
-    port: process.env.EMAIL_PORT,
-    secure: process.env.EMAIL_PORT === '465', // true for 465, false for other ports
+    port: parseInt(process.env.EMAIL_PORT || '465', 10), // Use 465
+    secure: true, // Use SSL for port 465
     auth: {
       user: process.env.EMAIL_USER,
       pass: process.env.EMAIL_PASS,
     },
-    // For development with services like Mailtrap or ethereal.email, add TLS options if needed
-    // tls: {
-    //     ciphers:'SSLv3' // Adjust based on provider requirements
-    // }
   });
 
   // 2. Define the email options
