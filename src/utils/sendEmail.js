@@ -1,32 +1,38 @@
 import nodemailer from 'nodemailer';
 
-/**
- * Sends an email using nodemailer with Gmail transporter.
- * @param {Object} options - Email details.
- * @param {string} options.email - Recipient email address.
- * @param {string} options.subject - Subject of the email.
- * @param {string} options.message - HTML content of the email.
- */
 const sendEmail = async (options) => {
-  // 1. Transporter config (Gmail, SMTP, etc.)
+  // 1. Create a transporter
   const transporter = nodemailer.createTransport({
-    service: 'gmail',
+    host: process.env.EMAIL_HOST,
+    port: process.env.EMAIL_PORT,
+    secure: process.env.EMAIL_PORT === '465', // true for 465, false for other ports
     auth: {
-      user: process.env.EMAIL_USER, // your Gmail address
-      pass: process.env.EMAIL_PASS  // your Gmail app password
-    }
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
+    },
+    // For development with services like Mailtrap or ethereal.email, add TLS options if needed
+    // tls: {
+    //     ciphers:'SSLv3' // Adjust based on provider requirements
+    // }
   });
 
-  // 2. Mail options
+  // 2. Define the email options
   const mailOptions = {
-    from: '"TDC" <no-reply@tdc.gov.in>',
+    from: `"${process.env.EMAIL_FROM_NAME}" <${process.env.EMAIL_FROM_ADDRESS}>`,
     to: options.email,
     subject: options.subject,
-    html: options.message
+    text: options.message,
+    // html: options.html // You can also send HTML emails
   };
 
-  // 3. Send email
-  await transporter.sendMail(mailOptions);
+  // 3. Actually send the email
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    console.log('Email sent: %s', info.messageId);
+  } catch (error) {
+    console.error("Error sending email:", error);
+    throw new Error('Email could not be sent'); // Throw error to be caught in controller
+  }
 };
 
 export default sendEmail;
